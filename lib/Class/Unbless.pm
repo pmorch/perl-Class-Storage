@@ -153,12 +153,16 @@ sub _setDefaultOptions {
 
 =head1 NAME
 
-Class::Unbless - unbless classes so they are rebless-able later. Handles
-blessed HASHes and ARRAYs
+Class::Unbless - unbless classes so they are rebless-able later.
+
+Handles blessed HASHes and ARRAYs
 
 =head1 VERSION
 
 Version 0.01
+
+B<NOTE>: I<THE NAME OF THIS CLASS MAY CHANGE. I'M LOOKING FOR OPINIONS ON
+THAT.>
 
 =cut
 
@@ -204,11 +208,15 @@ become:
     { __class__ => 'ModuleA', key => "value" }
     [ "__class__", 'ModuleB', "val1", "val2" ]
 
-Any hashes with the magic string as a key and any arrays with tha magic string
+Any hashes with the magic string as a key and any arrays with the magic string
 as the first element will be converted to blessed references
 
 This "magic string" can be given as an option (see L</"OPTIONS">), but if you
-cannot live with a magic string this module won't work for you.
+cannot live with a magic string, you can also provide
+C<< magicString => undef >>
+
+But then you won't be able to rebless that data. If this is your itch, you may
+actually want L<Data::Structure::Util> instead.
 
 =head3 Returns unbless-ed/rebless-ed data + modifies input argument
 
@@ -216,6 +224,12 @@ The valid data is returned. However, for speed, we also modify and re-use data
 from the input value. So don't rely on being able to reuse the C<$data> input
 for C<bless> and C<unbless> after they've been called and don't modify them
 either.
+
+If you don't want your input modified:
+
+    use Storable qw(dclone);
+    my $pristineData = somesub();
+    my $unblessed = ubless(dclone($pristineData));
 
 =head2 Inspiration
 
@@ -246,7 +260,7 @@ code in the wild."
 
 In particular I've seen several XS modules create instances where the internal
 state is not visible to Perl, and hence cannot be handled properly by this
-module. Here is an example with SNMP.pm:
+module. Here is an example with JSON:
 
     use Data::Dumper;
     use JSON;
@@ -254,7 +268,7 @@ module. Here is an example with SNMP.pm:
     # prints
     # $VAR1 = bless( do{\(my $o = '')}, 'JSON' );
 
-Clearly a JSON object has internal state and other things. This is an example
+Clearly a L<JSON> object has internal state and other data. This is an example
 of a blessed reference, but not a blessed HASH or ARRAY that Class::Unbless can
 handle. If you try C<unbless>-ing such a JSON instance, Class::Unbless will
 just leave the JSON object altogether untouched.
@@ -265,7 +279,8 @@ just leave the JSON object altogether untouched.
 
 =head1 SUBROUTINES/METHODS
 
-Both C<unbless> and C<bless> share the same C<%options>. See "OPTIONS" below.
+Both C<unbless> and C<bless> share the same C<%options>. See L</"OPTIONS">
+below.
 
 =head2 unbless
 
@@ -275,11 +290,40 @@ Both C<unbless> and C<bless> share the same C<%options>. See "OPTIONS" below.
 
     my $reblessed = rebless($unbessed, %options);
 
+=head1 OPTIONS
+
+These options are common to C<unbless> and C<rebless>:
+
+=over 4
+
+=item * C<toUnblessedMethodName>
+
+This option lets you change the name of the C<TO_UNBLESSED> method to something
+else. Hint: C<TO_JSON> could be a good idea here!
+
+=item * C<toBlessedMethodName>
+
+This option lets you change the name of the C<TO_BLESSED> method to something
+else. Hint: C<FROM_JSON> could be a good idea here, even though L<JSON>
+doesn't have such a method.
+
+Which is actually the entire Raison d'Etre of this module!
+
+=item * C<magicString>
+
+Change the magic string used to store the class name to something else than
+C<__class__>.
+
+If this is false, don't store class information at all, in which case
+C<unbless> becomes analogous to L<Data::Structure::Util::unbless>.
+
+=back
+
 =encoding UTF-8
 
 =head1 AUTHOR
 
-Peter Valdemar Mørch, C<< <peter at morch.com> >>
+Peter Valdemar Mørch, C<< <peter@morch.com> >>
 
 =head1 BUGS
 
@@ -338,7 +382,7 @@ L<https://metacpan.org/release/MooseX-Storage>
 Where he defines a TO_JSON in UNIVERSAL so it applies to all objects. It makes
 a deep copy, unblesses it, and returns the data structure.
 
-http://stackoverflow.com/a/2330077/345716
+L<http://stackoverflow.com/a/2330077/345716>
 
 =back
 
