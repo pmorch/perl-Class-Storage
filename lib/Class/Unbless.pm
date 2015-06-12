@@ -49,9 +49,11 @@ sub function1 {
 sub function2 {
 }
 
+=encoding UTF-8
+
 =head1 AUTHOR
 
-Peter Valdemar Morch, C<< <peter at morch.com> >>
+Peter Valdemar Mørch, C<< <peter at morch.com> >>
 
 =head1 BUGS
 
@@ -97,7 +99,7 @@ L<http://search.cpan.org/dist/Class-Unbless/>
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright 2015 Peter Valdemar Morch.
+Copyright 2015 Peter Valdemar Mørch.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the the Artistic License (2.0). You may obtain a
