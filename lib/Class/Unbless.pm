@@ -4,9 +4,157 @@ use 5.006;
 use strict;
 use warnings FATAL => 'all';
 
+use Scalar::Util qw(blessed reftype);
+
+use base qw(Exporter);
+our @EXPORT_OK = qw(unbless rebless);
+
+use constant DEFAULT_TO_UNBLESSED_METHOD_NAME => "TO_UNBLESSED";
+use constant DEFAULT_TO_BLESSED_METHOD_NAME => "TO_BLESSED";
+
+# MooseX::Storage uses __CLASS__ and so it is perhaps a good idea not to choose
+# *exactly* the same magic string - then it isn't magic any more! :-)
+use constant DEFAULT_MAGIC_STRING => "__class__";
+
+sub unbless {
+    my ($data, %options) = @_;
+
+    _setDefaultOptions(\%options);
+
+    my $val = _unbless($data, \%options);
+    return $val // $data;
+}
+
+sub _unbless {
+    my ($data, $options) = @_;
+
+    my $toUnblessedMethodName = $options->{toUnblessedMethodName};
+
+    if (blessed $data && $data->can($toUnblessedMethodName)) {
+        my $unblessed = $data->$toUnblessedMethodName();
+        bless $unblessed, ref($data);
+        $data = $unblessed;
+    }
+
+    if (reftype $data) {
+        if (reftype $data eq 'HASH') {
+            return _unblessHash($data, $options);
+        } elsif (reftype $data eq 'ARRAY') {
+            return _unblessArray($data, $options);
+        }
+    }
+
+    return undef;
+}
+
+sub _unblessHash {
+    my ($hash, $options) = @_;
+    # use Dbug; dbugDump(['hash', $hash]);
+    foreach my $key (keys %$hash) {
+        my $val = $hash->{$key};
+        my $newVal = _unbless($val, $options);
+        if ($newVal) {
+            $hash->{$key} = $newVal;
+        }
+    }
+    if (blessed $hash) {
+
+        $hash = {
+            ( $options->{magicString} ?
+                ( $options->{magicString} => ref($hash) ) : ()),
+            %$hash
+        };
+    }
+    return $hash;
+}
+
+sub _unblessArray {
+    my ($array, $options) = @_;
+    # use Dbug; dbugDump(['array', $array]);
+    foreach my $index (0..$#$array) {
+        my $val = $array->[$index];
+        my $newVal = _unbless($val, $options);
+        if ($newVal) {
+            $array->[$index] = $newVal;
+        }
+    }
+    if (blessed $array) {
+        $array = [
+            ( $options->{magicString} ?
+                ( $options->{magicString} => ref($array) ) : ()),
+            @$array
+        ];
+    }
+    return $array;
+}
+
+sub rebless {
+    my ($data, %options) = @_;
+    _setDefaultOptions(\%options);
+    my $val = _rebless($data, \%options);
+    return $val // $data;
+}
+
+sub _rebless {
+    my ($data, $options) = @_;
+    if (reftype $data eq 'HASH') {
+        return _reblessHash($data, $options);
+    } elsif (reftype $data eq 'ARRAY') {
+        return _reblessArray($data, $options);
+    }
+    return undef;
+}
+
+sub _reblessHash {
+    my ($hash, $options) = @_;
+    my $class = delete $hash->{$options->{magicString}};
+    if ($class) {
+        my $toBlessedMethodName = $options->{toBlessedMethodName};
+        if ($class->can($toBlessedMethodName)) {
+            return $class->$toBlessedMethodName($hash);
+        }
+        bless $hash, $class;
+    }
+    foreach my $key (keys %$hash) {
+        my $newVal = _rebless($hash->{$key}, $options);
+        $hash->{$key} = $newVal
+            if defined $newVal;
+    }
+    return undef;
+}
+
+sub _reblessArray {
+    my ($array, $options) = @_;
+    if (scalar @$array >= 2 && $array->[0] eq $options->{magicString}) {
+        shift @$array;
+        my $class = shift @$array;
+        my $toBlessedMethodName = $options->{toBlessedMethodName};
+        if ($class->can($toBlessedMethodName)) {
+            return $class->$toBlessedMethodName($array);
+        }
+        bless $array, $class;
+    }
+    foreach my $i (0..$#$array) {
+        my $newVal = _rebless($array->[$i], $options);
+        $array->[$i] = $newVal
+            if defined $newVal;
+    }
+    return undef;
+}
+
+sub _setDefaultOptions {
+    my ($options) = @_;
+    $options->{toUnblessedMethodName} //= DEFAULT_TO_UNBLESSED_METHOD_NAME;
+    $options->{toBlessedMethodName} //= DEFAULT_TO_BLESSED_METHOD_NAME;
+    if (! exists $options->{magicString}) {
+        $options->{magicString} = DEFAULT_MAGIC_STRING;
+    }
+}
+
 =head1 NAME
 
-Class::Unbless - The great new Class::Unbless!
+Class::Unbless - unbless classes so they are rebless-able later. Handles
+blessed HASHes and ARRAYs
 
 =head1 VERSION
 
@@ -16,38 +164,116 @@ Version 0.01
 
 our $VERSION = '0.01';
 
-
 =head1 SYNOPSIS
 
-Quick summary of what the module does.
+This module came into existence out of the need to be able to send I<objects>
+over JSON. JSON does not allow any blessed references to be sent by default and
+if sent, provides no generic way to resurrect these objects again after
+decoding. This can now all be done like this:
 
-Perhaps a little code snippet.
+    use JSON;
+    use Class::Unbless qw(unbless rebless);
 
-    use Class::Unbless;
+    my $object = MyModule->new();
+    my $jsonString = encode_json(unbless $object);
 
-    my $foo = Class::Unbless->new();
-    ...
+    print $writeHandle $jsonString, "\n";
+
+    # And on the other "side":
+
+    my $jsonString = <$readHandle>;
+    my $object2 = rebless(decode_json($jsonString));
+
+However, there is no JSON-specific functionality in this module whatsoever,
+only a way to cleanly "unbless" - remove the bless-ing - in a way that reliably
+can be re-introduced later.
+
+=head1 DESCRIPTION
+
+=head2 Using a magic string
+
+As you can see from the L</"SYNOPSIS">, we use a magic string ("__class__" by default) to store the class information for HASHes and ARRAYs.
+
+So:
+
+    bless { key => "value" }, "ModuleA";
+    bless [ "val1", "val2" ], "ModuleB";
+
+become:
+
+    { __class__ => 'ModuleA', key => "value" }
+    [ "__class__", 'ModuleB', "val1", "val2" ]
+
+Any hashes with the magic string as a key and any arrays with tha magic string
+as the first element will be converted to blessed references
+
+This "magic string" can be given as an option (see L</"OPTIONS">), but if you
+cannot live with a magic string this module won't work for you.
+
+=head3 Returns unbless-ed/rebless-ed data + modifies input argument
+
+The valid data is returned. However, for speed, we also modify and re-use data
+from the input value. So don't rely on being able to reuse the C<$data> input
+for C<bless> and C<unbless> after they've been called and don't modify them
+either.
+
+=head2 Inspiration
+
+Class::Unbless is inspired by L<MooseX::Storage> but this is a generic
+implementation that works on all plain perl classes that are implemented as
+blessed references to HASHes and ARRAYs (B<only> hashes and arrays).
+
+    use Class::Unbless qw(unbless rebless);
+
+    my $unblesed = unbless( bless { a => 1 }, 'MyModule' );
+
+    # $unblessed is now { __class__ => 'MyModule', a => 1 }
+
+    my $reblessed = rebless($unblessed);
+
+    # $reblessed is now bless { a => 1 }, 'MyModule'
+
+NOTE: L<MooseX::Storage> uses C<__CLASS__> as its magic string and we use
+C<__class__> to make sure they're not the same.
+
+=head1 NOTE ABOUT KINDS OF BLESSED OBJECTS
+
+L<perlobj> says:
+
+"... it's possible to bless any type of data structure or referent, including
+scalars, globs, and subroutines. You may see this sort of thing when looking at
+code in the wild."
+
+In particular I've seen several XS modules create instances where the internal
+state is not visible to Perl, and hence cannot be handled properly by this
+module. Here is an example with SNMP.pm:
+
+    use Data::Dumper;
+    use JSON;
+    print Dumper(JSON->new()->pretty(1));
+    # prints
+    # $VAR1 = bless( do{\(my $o = '')}, 'JSON' );
+
+Clearly a JSON object has internal state and other things. This is an example
+of a blessed reference, but not a blessed HASH or ARRAY that Class::Unbless can
+handle. If you try C<unbless>-ing such a JSON instance, Class::Unbless will
+just leave the JSON object altogether untouched.
 
 =head1 EXPORT
 
-A list of functions that can be exported.  You can delete this section
-if you don't export anything, such as for a purely object-oriented module.
+    our @EXPORT_OK = qw(unbless rebless);
 
 =head1 SUBROUTINES/METHODS
 
-=head2 function1
+Both C<unbless> and C<bless> share the same C<%options>. See "OPTIONS" below.
 
-=cut
+=head2 unbless
 
-sub function1 {
-}
+    my $unblessed = unbless($blessed, %options);
 
-=head2 function2
+=head2 rebless
 
-=cut
-
-sub function2 {
-}
+    my $reblessed = rebless($unbessed, %options);
 
 =encoding UTF-8
 
@@ -61,15 +287,11 @@ Please report any bugs or feature requests to C<bug-class-unbless at rt.cpan.org
 the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Class-Unbless>.  I will be notified, and then you'll
 automatically be notified of progress on your bug as I make changes.
 
-
-
-
 =head1 SUPPORT
 
 You can find documentation for this module with the perldoc command.
 
     perldoc Class::Unbless
-
 
 You can also look for information at:
 
@@ -93,9 +315,32 @@ L<http://search.cpan.org/dist/Class-Unbless/>
 
 =back
 
-
 =head1 ACKNOWLEDGEMENTS
 
+This has been inspired by many sources, but checkout:
+
+=over 4
+
+=item * How to convert Perl objects into JSON and vice versa - Stack Overflow
+
+L<http://stackoverflow.com/questions/4185482/how-to-convert-perl-objects-into-json-and-vice-versa/4185679>
+
+=item * How do I turn Moose objects into JSON for use in Catalyst?
+
+L<http://stackoverflow.com/questions/3391967/how-do-i-turn-moose-objects-into-json-for-use-in-catalyst>
+
+=item * MooseX-Storage
+
+L<https://metacpan.org/release/MooseX-Storage>
+
+=item * Brian D Foy's quick hack
+
+Where he defines a TO_JSON in UNIVERSAL so it applies to all objects. It makes
+a deep copy, unblesses it, and returns the data structure.
+
+http://stackoverflow.com/a/2330077/345716
+
+=back
 
 =head1 LICENSE AND COPYRIGHT
 
@@ -136,7 +381,6 @@ YOUR LOCAL LAW. UNLESS REQUIRED BY LAW, NO COPYRIGHT HOLDER OR
 CONTRIBUTOR WILL BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, OR
 CONSEQUENTIAL DAMAGES ARISING IN ANY WAY OUT OF THE USE OF THE PACKAGE,
 EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
 
 =cut
 
