@@ -1,6 +1,6 @@
 # NAME
 
-Class::Unbless - unbless classes so they are rebless-able later.
+Class::Storage - remove blessing from objects so they are bless-able later.
 
 Handles blessed HASHes and ARRAYs
 
@@ -19,17 +19,17 @@ if sent, provides no generic way to resurrect these objects again after
 decoding. This can now all be done like this:
 
     use JSON;
-    use Class::Unbless qw(unbless rebless);
+    use Class::Storage qw(packObjects unpackObjects);
 
     my $object = MyModule->new();
-    my $jsonString = encode_json(unbless $object);
+    my $jsonString = encode_json(packObjects $object);
 
     print $writeHandle $jsonString, "\n";
 
     # And on the other "side":
 
     my $jsonString = <$readHandle>;
-    my $object2 = rebless(decode_json($jsonString));
+    my $object2 = unpackObjects(decode_json($jsonString));
 
 However, there is no JSON-specific functionality in this module whatsoever,
 only a way to cleanly "unbless" - remove the bless-ing - in a way that reliably
@@ -58,14 +58,14 @@ This "magic string" can be given as an option (see ["OPTIONS"](#options)), but i
 cannot live with a magic string, you can also provide
 `magicString => undef`
 
-But then you won't be able to rebless that data. If this is your itch, you may
+But then you won't be able to re-bless that data. If this is your itch, you may
 actually want [Data::Structure::Util](https://metacpan.org/pod/Data::Structure::Util) instead.
 
-### Returns unbless-ed/rebless-ed data + modifies input argument
+### Returns packed/unpacked data + modifies input argument
 
 The valid data is returned. However, for speed, we also modify and re-use data
 from the input value. So don't rely on being able to reuse the `$data` input
-for `bless` and `unbless` after they've been called and don't modify them
+for `bless` and `packObjects` after they've been called and don't modify them
 either.
 
 If you don't want your input modified:
@@ -76,19 +76,19 @@ If you don't want your input modified:
 
 ## Inspiration
 
-Class::Unbless is inspired by [MooseX::Storage](https://metacpan.org/pod/MooseX::Storage) but this is a generic
+Class::Storage is inspired by [MooseX::Storage](https://metacpan.org/pod/MooseX::Storage) but this is a generic
 implementation that works on all plain perl classes that are implemented as
 blessed references to HASHes and ARRAYs (**only** hashes and arrays).
 
-    use Class::Unbless qw(unbless rebless);
+    use Class::Storage qw(packObjects unpackObjects);
 
-    my $unblesed = unbless( bless { a => 1 }, 'MyModule' );
+    my $packed = packObjects( bless { a => 1 }, 'MyModule' );
 
-    # $unblessed is now { __class__ => 'MyModule', a => 1 }
+    # $packed is now { __class__ => 'MyModule', a => 1 }
 
-    my $reblessed = rebless($unblessed);
+    my $unpacked = unpackObjects($packed);
 
-    # $reblessed is now bless { a => 1 }, 'MyModule'
+    # $unpacked is now bless { a => 1 }, 'MyModule'
 
 NOTE: [MooseX::Storage](https://metacpan.org/pod/MooseX::Storage) uses `__CLASS__` as its magic string and we use
 `__class__` to make sure they're not the same.
@@ -112,37 +112,37 @@ module. Here is an example with JSON:
     # $VAR1 = bless( do{\(my $o = '')}, 'JSON' );
 
 Clearly a [JSON](https://metacpan.org/pod/JSON) object has internal state and other data. This is an example
-of a blessed reference, but not a blessed HASH or ARRAY that Class::Unbless can
-handle. If you try `unbless`-ing such a JSON instance, Class::Unbless will
+of a blessed reference, but not a blessed HASH or ARRAY that Class::Storage can
+handle. If you try `packObjects`-ing such a JSON instance, Class::Storage will
 just leave the JSON object altogether untouched.
 
 # EXPORT
 
-    our @EXPORT_OK = qw(unbless rebless);
+    our @EXPORT_OK = qw(packObjects unpackObjects);
 
 # SUBROUTINES/METHODS
 
-Both `unbless` and `bless` share the same `%options`. See ["OPTIONS"](#options)
+Both `packObjects` and `bless` share the same `%options`. See ["OPTIONS"](#options)
 below.
 
-## unbless
+## packObjects
 
-    my $unblessed = unbless($blessed, %options);
+    my $packed = packObjects($blessed, %options);
 
-## rebless
+## unpackObjects
 
-    my $reblessed = rebless($unbessed, %options);
+    my $unpacked = unpackObjects($unbessed, %options);
 
 # OPTIONS
 
-These options are common to `unbless` and `rebless`:
+These options are common to `packObjects` and `unpackObjects`:
 
-- `toUnblessedMethodName`
+- `toPackedMethodName`
 
     This option lets you change the name of the `TO_UNBLESSED` method to something
     else. Hint: `TO_JSON` could be a good idea here!
 
-- `toBlessedMethodName`
+- `fromPackedMethodName`
 
     This option lets you change the name of the `TO_BLESSED` method to something
     else. Hint: `FROM_JSON` could be a good idea here, even though [JSON](https://metacpan.org/pod/JSON)
@@ -156,7 +156,7 @@ These options are common to `unbless` and `rebless`:
     `__class__`.
 
     If this is false, don't store class information at all, in which case
-    `unbless` becomes analogous to [Data::Structure::Util::unbless](https://metacpan.org/pod/Data::Structure::Util::unbless).
+    `packObjects` becomes analogous to [Data::Structure::Util::packObjects](https://metacpan.org/pod/Data::Structure::Util::packObjects).
 
 # AUTHOR
 
@@ -164,33 +164,33 @@ Peter Valdemar Mørch, `<peter@morch.com>`
 
 # BUGS
 
-Please report any bugs or feature requests to `bug-class-unbless at rt.cpan.org`, or through
-the web interface at [http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Class-Unbless](http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Class-Unbless).  I will be notified, and then you'll
+Please report any bugs or feature requests to `bug-class-storage at rt.cpan.org`, or through
+the web interface at [http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Class-Storage](http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Class-Storage).  I will be notified, and then you'll
 automatically be notified of progress on your bug as I make changes.
 
 # SUPPORT
 
 You can find documentation for this module with the perldoc command.
 
-    perldoc Class::Unbless
+    perldoc Class::Storage
 
 You can also look for information at:
 
 - RT: CPAN's request tracker (report bugs here)
 
-    [http://rt.cpan.org/NoAuth/Bugs.html?Dist=Class-Unbless](http://rt.cpan.org/NoAuth/Bugs.html?Dist=Class-Unbless)
+    [http://rt.cpan.org/NoAuth/Bugs.html?Dist=Class-Storage](http://rt.cpan.org/NoAuth/Bugs.html?Dist=Class-Storage)
 
 - AnnoCPAN: Annotated CPAN documentation
 
-    [http://annocpan.org/dist/Class-Unbless](http://annocpan.org/dist/Class-Unbless)
+    [http://annocpan.org/dist/Class-Storage](http://annocpan.org/dist/Class-Storage)
 
 - CPAN Ratings
 
-    [http://cpanratings.perl.org/d/Class-Unbless](http://cpanratings.perl.org/d/Class-Unbless)
+    [http://cpanratings.perl.org/d/Class-Storage](http://cpanratings.perl.org/d/Class-Storage)
 
 - Search CPAN
 
-    [http://search.cpan.org/dist/Class-Unbless/](http://search.cpan.org/dist/Class-Unbless/)
+    [http://search.cpan.org/dist/Class-Storage/](http://search.cpan.org/dist/Class-Storage/)
 
 # ACKNOWLEDGEMENTS
 

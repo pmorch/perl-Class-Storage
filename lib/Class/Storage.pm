@@ -1,4 +1,6 @@
-package Class::Unbless;
+package Class::Storage;
+
+# See perldoc at bottom of this file
 
 use 5.006;
 use strict;
@@ -7,58 +9,57 @@ use warnings FATAL => 'all';
 use Scalar::Util qw(blessed reftype);
 
 use base qw(Exporter);
-our @EXPORT_OK = qw(unbless rebless);
+our @EXPORT_OK = qw(packObjects unpackObjects);
 
-use constant DEFAULT_TO_UNBLESSED_METHOD_NAME => "TO_UNBLESSED";
-use constant DEFAULT_TO_BLESSED_METHOD_NAME => "TO_BLESSED";
+use constant DEFAULT_TO_PACKED_METHOD_NAME => "TO_PACKED";
+use constant DEFAULT_FROM_PACKED_METHOD_NAME => "FROM_PACKED";
 
 # MooseX::Storage uses __CLASS__ and so it is perhaps a good idea not to choose
 # *exactly* the same magic string - then it isn't magic any more! :-)
 use constant DEFAULT_MAGIC_STRING => "__class__";
 
-sub unbless {
+sub packObjects {
     my ($data, %options) = @_;
 
     _setDefaultOptions(\%options);
 
-    my $val = _unbless($data, \%options);
+    my $val = _packObjects($data, \%options);
     return $val // $data;
 }
 
-sub _unbless {
+sub _packObjects {
     my ($data, $options) = @_;
 
-    my $toUnblessedMethodName = $options->{toUnblessedMethodName};
+    my $toPackedMethodName = $options->{toPackedMethodName};
 
-    if (blessed $data && $data->can($toUnblessedMethodName)) {
-        my $unblessed = $data->$toUnblessedMethodName();
-        bless $unblessed, ref($data);
-        $data = $unblessed;
+    if (blessed $data && $data->can($toPackedMethodName)) {
+        my $packed = $data->$toPackedMethodName();
+        bless $packed, ref($data);
+        $data = $packed;
     }
 
     if (reftype $data) {
         if (reftype $data eq 'HASH') {
-            return _unblessHash($data, $options);
+            return _packObjectsHash($data, $options);
         } elsif (reftype $data eq 'ARRAY') {
-            return _unblessArray($data, $options);
+            return _packObjectsArray($data, $options);
         }
     }
 
     return undef;
 }
 
-sub _unblessHash {
+sub _packObjectsHash {
     my ($hash, $options) = @_;
     # use Dbug; dbugDump(['hash', $hash]);
     foreach my $key (keys %$hash) {
         my $val = $hash->{$key};
-        my $newVal = _unbless($val, $options);
+        my $newVal = _packObjects($val, $options);
         if ($newVal) {
             $hash->{$key} = $newVal;
         }
     }
     if (blessed $hash) {
-
         $hash = {
             ( $options->{magicString} ?
                 ( $options->{magicString} => ref($hash) ) : ()),
@@ -68,12 +69,12 @@ sub _unblessHash {
     return $hash;
 }
 
-sub _unblessArray {
+sub _packObjectsArray {
     my ($array, $options) = @_;
     # use Dbug; dbugDump(['array', $array]);
     foreach my $index (0..$#$array) {
         my $val = $array->[$index];
-        my $newVal = _unbless($val, $options);
+        my $newVal = _packObjects($val, $options);
         if ($newVal) {
             $array->[$index] = $newVal;
         }
@@ -88,54 +89,54 @@ sub _unblessArray {
     return $array;
 }
 
-sub rebless {
+sub unpackObjects {
     my ($data, %options) = @_;
     _setDefaultOptions(\%options);
-    my $val = _rebless($data, \%options);
+    my $val = _unpackObjects($data, \%options);
     return $val // $data;
 }
 
-sub _rebless {
+sub _unpackObjects {
     my ($data, $options) = @_;
     if (reftype $data eq 'HASH') {
-        return _reblessHash($data, $options);
+        return _unpackObjectsHash($data, $options);
     } elsif (reftype $data eq 'ARRAY') {
-        return _reblessArray($data, $options);
+        return _unpackObjectsArray($data, $options);
     }
     return undef;
 }
 
-sub _reblessHash {
+sub _unpackObjectsHash {
     my ($hash, $options) = @_;
     my $class = delete $hash->{$options->{magicString}};
     if ($class) {
-        my $toBlessedMethodName = $options->{toBlessedMethodName};
-        if ($class->can($toBlessedMethodName)) {
-            return $class->$toBlessedMethodName($hash);
+        my $fromPackedMethodName = $options->{fromPackedMethodName};
+        if ($class->can($fromPackedMethodName)) {
+            return $class->$fromPackedMethodName($hash);
         }
         bless $hash, $class;
     }
     foreach my $key (keys %$hash) {
-        my $newVal = _rebless($hash->{$key}, $options);
+        my $newVal = _unpackObjects($hash->{$key}, $options);
         $hash->{$key} = $newVal
             if defined $newVal;
     }
     return undef;
 }
 
-sub _reblessArray {
+sub _unpackObjectsArray {
     my ($array, $options) = @_;
     if (scalar @$array >= 2 && $array->[0] eq $options->{magicString}) {
         shift @$array;
         my $class = shift @$array;
-        my $toBlessedMethodName = $options->{toBlessedMethodName};
-        if ($class->can($toBlessedMethodName)) {
-            return $class->$toBlessedMethodName($array);
+        my $fromPackedMethodName = $options->{fromPackedMethodName};
+        if ($class->can($fromPackedMethodName)) {
+            return $class->$fromPackedMethodName($array);
         }
         bless $array, $class;
     }
     foreach my $i (0..$#$array) {
-        my $newVal = _rebless($array->[$i], $options);
+        my $newVal = _unpackObjects($array->[$i], $options);
         $array->[$i] = $newVal
             if defined $newVal;
     }
@@ -144,8 +145,8 @@ sub _reblessArray {
 
 sub _setDefaultOptions {
     my ($options) = @_;
-    $options->{toUnblessedMethodName} //= DEFAULT_TO_UNBLESSED_METHOD_NAME;
-    $options->{toBlessedMethodName} //= DEFAULT_TO_BLESSED_METHOD_NAME;
+    $options->{toPackedMethodName} //= DEFAULT_TO_PACKED_METHOD_NAME;
+    $options->{fromPackedMethodName} //= DEFAULT_FROM_PACKED_METHOD_NAME;
     if (! exists $options->{magicString}) {
         $options->{magicString} = DEFAULT_MAGIC_STRING;
     }
@@ -153,16 +154,14 @@ sub _setDefaultOptions {
 
 =head1 NAME
 
-Class::Unbless - unbless classes so they are rebless-able later.
+Class::Storage - pack objects by removing blessing so they can be unpacked back
+into objects again later.
 
 Handles blessed HASHes and ARRAYs
 
 =head1 VERSION
 
 Version 0.01
-
-B<NOTE>: I<THE NAME OF THIS CLASS MAY CHANGE. I'M LOOKING FOR OPINIONS ON
-THAT.>
 
 =cut
 
@@ -176,17 +175,17 @@ if sent, provides no generic way to resurrect these objects again after
 decoding. This can now all be done like this:
 
     use JSON;
-    use Class::Unbless qw(unbless rebless);
+    use Class::Storage qw(packObjects unpackObjects);
 
     my $object = MyModule->new();
-    my $jsonString = encode_json(unbless $object);
+    my $jsonString = encode_json(packObjects $object);
 
     print $writeHandle $jsonString, "\n";
 
     # And on the other "side":
 
     my $jsonString = <$readHandle>;
-    my $object2 = rebless(decode_json($jsonString));
+    my $object2 = unpackObjects(decode_json($jsonString));
 
 However, there is no JSON-specific functionality in this module whatsoever,
 only a way to cleanly "unbless" - remove the bless-ing - in a way that reliably
@@ -198,31 +197,29 @@ can be re-introduced later.
 
 As you can see from the L</"SYNOPSIS">, we use a magic string ("__class__" by default) to store the class information for HASHes and ARRAYs.
 
-So:
+So C<packObjects> turns:
 
     bless { key => "value" }, "ModuleA";
     bless [ "val1", "val2" ], "ModuleB";
 
-become:
+into:
 
     { __class__ => 'ModuleA', key => "value" }
     [ "__class__", 'ModuleB', "val1", "val2" ]
 
-Any hashes with the magic string as a key and any arrays with the magic string
-as the first element will be converted to blessed references
+C<unpackObjects> converts any hashes with the magic string as a key and any
+arrays with the magic string as the first element back to blessed references
 
 This "magic string" can be given as an option (see L</"OPTIONS">), but if you
 cannot live with a magic string, you can also provide
-C<< magicString => undef >>
+C<< magicString => undef >>. But then you won't be able to re-bless that data.
+If this is your itch, you may actually want L<Data::Structure::Util> instead.
 
-But then you won't be able to rebless that data. If this is your itch, you may
-actually want L<Data::Structure::Util> instead.
-
-=head3 Returns unbless-ed/rebless-ed data + modifies input argument
+=head2 Returns packed/unpacked data + modifies input argument
 
 The valid data is returned. However, for speed, we also modify and re-use data
 from the input value. So don't rely on being able to reuse the C<$data> input
-for C<bless> and C<unbless> after they've been called and don't modify them
+for C<bless> and C<packObjects> after they've been called and don't modify them
 either.
 
 If you don't want your input modified:
@@ -233,19 +230,19 @@ If you don't want your input modified:
 
 =head2 Inspiration
 
-Class::Unbless is inspired by L<MooseX::Storage> but this is a generic
+Class::Storage is inspired by L<MooseX::Storage> but this is a generic
 implementation that works on all plain perl classes that are implemented as
 blessed references to HASHes and ARRAYs (B<only> hashes and arrays).
 
-    use Class::Unbless qw(unbless rebless);
+    use Class::Storage qw(packObjects unpackObjects);
 
-    my $unblesed = unbless( bless { a => 1 }, 'MyModule' );
+    my $packed = packObjects( bless { a => 1 }, 'MyModule' );
 
-    # $unblessed is now { __class__ => 'MyModule', a => 1 }
+    # $packed is now { __class__ => 'MyModule', a => 1 }
 
-    my $reblessed = rebless($unblessed);
+    my $unpacked = unpackObjects($packed);
 
-    # $reblessed is now bless { a => 1 }, 'MyModule'
+    # $unpacked is now bless { a => 1 }, 'MyModule'
 
 NOTE: L<MooseX::Storage> uses C<__CLASS__> as its magic string and we use
 C<__class__> to make sure they're not the same.
@@ -269,39 +266,39 @@ module. Here is an example with JSON:
     # $VAR1 = bless( do{\(my $o = '')}, 'JSON' );
 
 Clearly a L<JSON> object has internal state and other data. This is an example
-of a blessed reference, but not a blessed HASH or ARRAY that Class::Unbless can
-handle. If you try C<unbless>-ing such a JSON instance, Class::Unbless will
+of a blessed reference, but not a blessed HASH or ARRAY that Class::Storage can
+handle. If you try C<packObjects>-ing such a JSON instance, Class::Storage will
 just leave the JSON object altogether untouched.
 
 =head1 EXPORT
 
-    our @EXPORT_OK = qw(unbless rebless);
+    our @EXPORT_OK = qw(packObjects unpackObjects);
 
 =head1 SUBROUTINES/METHODS
 
-Both C<unbless> and C<bless> share the same C<%options>. See L</"OPTIONS">
+Both C<packObjects> and C<bless> share the same C<%options>. See L</"OPTIONS">
 below.
 
-=head2 unbless
+=head2 packObjects
 
-    my $unblessed = unbless($blessed, %options);
+    my $packed = packObjects($blessed, %options);
 
-=head2 rebless
+=head2 unpackObjects
 
-    my $reblessed = rebless($unbessed, %options);
+    my $unpacked = unpackObjects($unbessed, %options);
 
 =head1 OPTIONS
 
-These options are common to C<unbless> and C<rebless>:
+These options are common to C<packObjects> and C<unpackObjects>:
 
 =over 4
 
-=item * C<toUnblessedMethodName>
+=item * C<toPackedMethodName>
 
 This option lets you change the name of the C<TO_UNBLESSED> method to something
 else. Hint: C<TO_JSON> could be a good idea here!
 
-=item * C<toBlessedMethodName>
+=item * C<fromPackedMethodName>
 
 This option lets you change the name of the C<TO_BLESSED> method to something
 else. Hint: C<FROM_JSON> could be a good idea here, even though L<JSON>
@@ -315,7 +312,7 @@ Change the magic string used to store the class name to something else than
 C<__class__>.
 
 If this is false, don't store class information at all, in which case
-C<unbless> becomes analogous to L<Data::Structure::Util::unbless>.
+C<packObjects> becomes analogous to L<Data::Structure::Util::packObjects>.
 
 =back
 
@@ -327,15 +324,15 @@ Peter Valdemar Mørch, C<< <peter@morch.com> >>
 
 =head1 BUGS
 
-Please report any bugs or feature requests to C<bug-class-unbless at rt.cpan.org>, or through
-the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Class-Unbless>.  I will be notified, and then you'll
+Please report any bugs or feature requests to C<bug-class-storage at rt.cpan.org>, or through
+the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Class-Storage>.  I will be notified, and then you'll
 automatically be notified of progress on your bug as I make changes.
 
 =head1 SUPPORT
 
 You can find documentation for this module with the perldoc command.
 
-    perldoc Class::Unbless
+    perldoc Class::Storage
 
 You can also look for information at:
 
@@ -343,19 +340,19 @@ You can also look for information at:
 
 =item * RT: CPAN's request tracker (report bugs here)
 
-L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Class-Unbless>
+L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Class-Storage>
 
 =item * AnnoCPAN: Annotated CPAN documentation
 
-L<http://annocpan.org/dist/Class-Unbless>
+L<http://annocpan.org/dist/Class-Storage>
 
 =item * CPAN Ratings
 
-L<http://cpanratings.perl.org/d/Class-Unbless>
+L<http://cpanratings.perl.org/d/Class-Storage>
 
 =item * Search CPAN
 
-L<http://search.cpan.org/dist/Class-Unbless/>
+L<http://search.cpan.org/dist/Class-Storage/>
 
 =back
 
@@ -428,4 +425,4 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 =cut
 
-1; # End of Class::Unbless
+1; # End of Class::Storage

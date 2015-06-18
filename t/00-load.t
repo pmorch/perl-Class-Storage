@@ -7,7 +7,7 @@ use Test::More;
 plan tests => 1;
 
 BEGIN {
-    use_ok( 'Class::Unbless' ) || print "Bail out!\n";
+    use_ok( 'Class::Storage' ) || print "Bail out!\n";
 }
 
-diag( "Testing Class::Unbless $Class::Unbless::VERSION, Perl $], $^X" );
+diag( "Testing Class::Storage $Class::Storage::VERSION, Perl $], $^X" );

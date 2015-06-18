@@ -4,7 +4,7 @@ use Test::More;
 
 use lib '../lib';
 
-use Class::Unbless qw(unbless rebless);
+use Class::Storage qw(packObjects unpackObjects);
 use Clone 'clone';
 
 ## Create a few Classes for testing purposes
@@ -20,14 +20,14 @@ sub new {
     return bless { val => $val }, $class;
 }
 
-sub TO_UNBLESSED {
+sub TO_PACKED {
     my ($self) = @_;
     return { VAL => $self->{val} };
 }
 
-sub TO_BLESSED {
-    my ($class, $unblessed) = @_;
-    return bless({ val => $unblessed->{VAL} }, $class);
+sub FROM_PACKED {
+    my ($class, $packed) = @_;
+    return bless({ val => $packed->{VAL} }, $class);
 }
 
 package HasConverters::SubClass;
@@ -47,10 +47,10 @@ sub TO_JSON {
 }
 
 sub FROM_JSON {
-    my ($class, $unblessed) = @_;
-    $unblessed->[0] eq 'FOOBAR'
+    my ($class, $packed) = @_;
+    $packed->[0] eq 'FOOBAR'
         or die "Expected FOOBAR";
-    return bless([ $unblessed->[1] ], $class);
+    return bless([ $packed->[1] ], $class);
 }
 
 package main;
@@ -64,7 +64,7 @@ foreach my $set (
             'a' => bless( { 'b' => bless( {}, "c" ), }, "d" ),
             'e' => [ bless( [], "f" ), bless( [], "g" ), ]
         },
-        unblessed => {
+        packed => {
           'a' => {
             '__class__' => 'd',
             'b' => {
@@ -88,7 +88,7 @@ foreach my $set (
         blessed => {
             'a' => bless( { 'b' => bless( {}, "c" ), }, "d" ),
         },
-        unblessed => {
+        packed => {
           'a' => {
             'MAGIC' => 'd',
             'b' => {
@@ -103,7 +103,7 @@ foreach my $set (
     {
         name => 'HasConverters',
         blessed => HasConverters->new(47),
-        unblessed => {
+        packed => {
             VAL => 47,
             __class__ => 'HasConverters'
         }
@@ -111,7 +111,7 @@ foreach my $set (
     {
         name => 'HasConverters::SubClass',
         blessed => HasConverters::SubClass->new(29),
-        unblessed => {
+        packed => {
             VAL => 29,
             __class__ => 'HasConverters::SubClass'
         }
@@ -119,10 +119,10 @@ foreach my $set (
     {
         name => 'HasToFromJSON::Array (uses method name options)',
         blessed => HasToFromJSON::Array->new(11),
-        unblessed => [ '__class__', 'HasToFromJSON::Array', 'FOOBAR', 11 ],
+        packed => [ '__class__', 'HasToFromJSON::Array', 'FOOBAR', 11 ],
         options => {
-            toUnblessedMethodName => 'TO_JSON',
-            toBlessedMethodName => 'FROM_JSON',
+            toPackedMethodName => 'TO_JSON',
+            fromPackedMethodName => 'FROM_JSON',
         }
     },
 ) {
@@ -130,16 +130,16 @@ foreach my $set (
 
         my %options = $set->{options} ? ( %{ $set->{options} } ) : ();
         my $blessedCopy = clone ($set->{blessed});
-        my $unblessed = unbless($blessedCopy, %options);
+        my $packed = packObjects($blessedCopy, %options);
         is_deeply(
-            $unblessed, $set->{unblessed},
-            "Unblessed as expected"
-        ) or diag explain $unblessed;
-        my $reblessed = rebless($unblessed, %options);
+            $packed, $set->{packed},
+            "packed as expected"
+        ) or diag explain $packed;
+        my $unpacked = unpackObjects($packed, %options);
         is_deeply(
-            $reblessed, $set->{blessed},
-            "Reblessed as expected"
-        ) or diag explain $unblessed;
+            $unpacked, $set->{blessed},
+            "unpacked as expected"
+        ) or diag explain $unpacked;
     };
 }
 
@@ -157,11 +157,11 @@ subtest "False magicString" => sub {
         []
       ]
     };
-    my $unblessed = unbless($blessed, magicString => undef);
+    my $packed = packObjects($blessed, magicString => undef);
     is_deeply(
-        $unblessed, $expected,
+        $packed, $expected,
         "Unbless without magic string as expected"
-    ) or diag explain $unblessed;
+    ) or diag explain $packed;
 };
 
 done_testing;
