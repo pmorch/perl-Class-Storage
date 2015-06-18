@@ -177,15 +177,21 @@ decoding. This can now all be done like this:
     use JSON;
     use Class::Storage qw(packObjects unpackObjects);
 
-    my $object = MyModule->new();
-    my $jsonString = encode_json(packObjects $object);
+    my $object = bless { a => 1 }, 'MyModule';
+    my $packed = packObjects( $object );
 
-    print $writeHandle $jsonString, "\n";
+    # $packed is now { __class__ => 'MyModule', a => 1 }
+
+    print $writeHandle encode_json($packed), "\n";
 
     # And on the other "side":
 
     my $jsonString = <$readHandle>;
-    my $object2 = unpackObjects(decode_json($jsonString));
+    my $packed = decode_json($jsonString);
+    my $unpackedObject = unpackObjects($packed);
+
+    # $unpacked is now bless { a => 1 }, 'MyModule'
+    # Which is_deeply the same as $object that we started with
 
 However, there is no JSON-specific functionality in this module whatsoever,
 only a way to cleanly "unbless" - remove the bless-ing - in a way that reliably
@@ -234,18 +240,28 @@ Class::Storage is inspired by L<MooseX::Storage> but this is a generic
 implementation that works on all plain perl classes that are implemented as
 blessed references to HASHes and ARRAYs (B<only> hashes and arrays).
 
-    use Class::Storage qw(packObjects unpackObjects);
-
-    my $packed = packObjects( bless { a => 1 }, 'MyModule' );
-
-    # $packed is now { __class__ => 'MyModule', a => 1 }
-
-    my $unpacked = unpackObjects($packed);
-
-    # $unpacked is now bless { a => 1 }, 'MyModule'
-
 NOTE: L<MooseX::Storage> uses C<__CLASS__> as its magic string and we use
 C<__class__> to make sure they're not the same.
+
+=head2 C<TO_PACKED> and C<FROM_PACKED>
+
+If you want to control how internal state gets represeted when packed, then
+provide a C<TO_PACKED> instance method. It will be called like:
+
+    my $packed = $object->TO_PACKED();
+
+This packed data will be used by C<packObjects> instead of the guts of
+C<$object>.
+
+Similarly, when during C<unpackObjects>, if a module has a C<FROM_PACKED>
+static method it will be called like this:
+
+    my $object = $module->FROM_PACKED($packed);
+
+As you can see, C<TO_PACKED> and C<FROM_PACKED> go together as pairs.
+
+You can also modify the names of these methods with the C<toPackedMethodName>
+and C<fromPackedMethodName> options. See L</"OPTIONS>.
 
 =head1 NOTE ABOUT KINDS OF BLESSED OBJECTS
 

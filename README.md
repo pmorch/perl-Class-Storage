@@ -1,15 +1,13 @@
 # NAME
 
-Class::Storage - remove blessing from objects so they are bless-able later.
+Class::Storage - pack objects by removing blessing so they can be unpacked back
+into objects again later.
 
 Handles blessed HASHes and ARRAYs
 
 # VERSION
 
 Version 0.01
-
-**NOTE**: _THE NAME OF THIS CLASS MAY CHANGE. I'M LOOKING FOR OPINIONS ON
-THAT._
 
 # SYNOPSIS
 
@@ -21,15 +19,21 @@ decoding. This can now all be done like this:
     use JSON;
     use Class::Storage qw(packObjects unpackObjects);
 
-    my $object = MyModule->new();
-    my $jsonString = encode_json(packObjects $object);
+    my $object = bless { a => 1 }, 'MyModule';
+    my $packed = packObjects( $object );
 
-    print $writeHandle $jsonString, "\n";
+    # $packed is now { __class__ => 'MyModule', a => 1 }
+
+    print $writeHandle encode_json($packed), "\n";
 
     # And on the other "side":
 
     my $jsonString = <$readHandle>;
-    my $object2 = unpackObjects(decode_json($jsonString));
+    my $packed = decode_json($jsonString);
+    my $unpackedObject = unpackObjects($packed);
+
+    # $unpacked is now bless { a => 1 }, 'MyModule'
+    # Which is_deeply the same as $object that we started with
 
 However, there is no JSON-specific functionality in this module whatsoever,
 only a way to cleanly "unbless" - remove the bless-ing - in a way that reliably
@@ -41,27 +45,25 @@ can be re-introduced later.
 
 As you can see from the ["SYNOPSIS"](#synopsis), we use a magic string ("\_\_class\_\_" by default) to store the class information for HASHes and ARRAYs.
 
-So:
+So `packObjects` turns:
 
     bless { key => "value" }, "ModuleA";
     bless [ "val1", "val2" ], "ModuleB";
 
-become:
+into:
 
     { __class__ => 'ModuleA', key => "value" }
     [ "__class__", 'ModuleB', "val1", "val2" ]
 
-Any hashes with the magic string as a key and any arrays with the magic string
-as the first element will be converted to blessed references
+`unpackObjects` converts any hashes with the magic string as a key and any
+arrays with the magic string as the first element back to blessed references
 
 This "magic string" can be given as an option (see ["OPTIONS"](#options)), but if you
 cannot live with a magic string, you can also provide
-`magicString => undef`
+`magicString => undef`. But then you won't be able to re-bless that data.
+If this is your itch, you may actually want [Data::Structure::Util](https://metacpan.org/pod/Data::Structure::Util) instead.
 
-But then you won't be able to re-bless that data. If this is your itch, you may
-actually want [Data::Structure::Util](https://metacpan.org/pod/Data::Structure::Util) instead.
-
-### Returns packed/unpacked data + modifies input argument
+## Returns packed/unpacked data + modifies input argument
 
 The valid data is returned. However, for speed, we also modify and re-use data
 from the input value. So don't rely on being able to reuse the `$data` input
@@ -80,18 +82,28 @@ Class::Storage is inspired by [MooseX::Storage](https://metacpan.org/pod/MooseX:
 implementation that works on all plain perl classes that are implemented as
 blessed references to HASHes and ARRAYs (**only** hashes and arrays).
 
-    use Class::Storage qw(packObjects unpackObjects);
-
-    my $packed = packObjects( bless { a => 1 }, 'MyModule' );
-
-    # $packed is now { __class__ => 'MyModule', a => 1 }
-
-    my $unpacked = unpackObjects($packed);
-
-    # $unpacked is now bless { a => 1 }, 'MyModule'
-
 NOTE: [MooseX::Storage](https://metacpan.org/pod/MooseX::Storage) uses `__CLASS__` as its magic string and we use
 `__class__` to make sure they're not the same.
+
+## `TO_PACKED` and `FROM_PACKED`
+
+If you want to control how internal state gets represeted when packed, then
+provide a `TO_PACKED` instance method. It will be called like:
+
+    my $packed = $object->TO_PACKED();
+
+This packed data will be used by `packObjects` instead of the guts of
+`$object`.
+
+Similarly, when during `unpackObjects`, if a module has a `FROM_PACKED`
+static method it will be called like this:
+
+    my $object = $module->FROM_PACKED($packed);
+
+As you can see, `TO_PACKED` and `FROM_PACKED` go together as pairs.
+
+You can also modify the names of these methods with the `toPackedMethodName`
+and `fromPackedMethodName` options. See [""OPTIONS"](#options).
 
 # NOTE ABOUT KINDS OF BLESSED OBJECTS
 
