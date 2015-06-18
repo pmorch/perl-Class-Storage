@@ -7,7 +7,7 @@ Handles blessed HASHes and ARRAYs
 
 # VERSION
 
-Version 0.01
+Version 0.02
 
 # SYNOPSIS
 
@@ -36,14 +36,15 @@ decoding. This can now all be done like this:
     # Which is_deeply the same as $object that we started with
 
 However, there is no JSON-specific functionality in this module whatsoever,
-only a way to cleanly "unbless" - remove the bless-ing - in a way that reliably
-can be re-introduced later.
+only a way to cleanly remove the bless-ing in a way that reliably can be
+re-introduced later.
 
 # DESCRIPTION
 
 ## Using a magic string
 
-As you can see from the ["SYNOPSIS"](#synopsis), we use a magic string ("\_\_class\_\_" by default) to store the class information for HASHes and ARRAYs.
+As you can see from the ["SYNOPSIS"](#synopsis), we use a magic string (`__class__` by
+default) to store the class information for HASHes and ARRAYs.
 
 So `packObjects` turns:
 
@@ -60,21 +61,22 @@ arrays with the magic string as the first element back to blessed references
 
 This "magic string" can be given as an option (see ["OPTIONS"](#options)), but if you
 cannot live with a magic string, you can also provide
-`magicString => undef`. But then you won't be able to re-bless that data.
-If this is your itch, you may actually want [Data::Structure::Util](https://metacpan.org/pod/Data::Structure::Util) instead.
+`magicString => undef`. But then you won't be able to unpack that data and
+turn it back into objects. If this is your itch, you may actually want
+[Data::Structure::Util](https://metacpan.org/pod/Data::Structure::Util) instead.
 
 ## Returns packed/unpacked data + modifies input argument
 
 The valid data is returned. However, for speed, we also modify and re-use data
 from the input value. So don't rely on being able to reuse the `$data` input
-for `bless` and `packObjects` after they've been called and don't modify them
-either.
+for `packObjects` and `unpackObjects` after they've been called and don't
+modify them either.
 
 If you don't want your input modified:
 
     use Storable qw(dclone);
     my $pristineData = somesub();
-    my $unblessed = ubless(dclone($pristineData));
+    my $packed = packObjects(dclone($pristineData));
 
 ## Inspiration
 
@@ -92,11 +94,11 @@ provide a `TO_PACKED` instance method. It will be called like:
 
     my $packed = $object->TO_PACKED();
 
-This packed data will be used by `packObjects` instead of the guts of
+This `$packed` data will be used by `packObjects` instead of the guts of
 `$object`.
 
-Similarly, when during `unpackObjects`, if a module has a `FROM_PACKED`
-static method it will be called like this:
+Similarly, during `unpackObjects`, if a module has a `FROM_PACKED` static
+method it will be called like this:
 
     my $object = $module->FROM_PACKED($packed);
 
@@ -134,8 +136,8 @@ just leave the JSON object altogether untouched.
 
 # SUBROUTINES/METHODS
 
-Both `packObjects` and `bless` share the same `%options`. See ["OPTIONS"](#options)
-below.
+Both `packObjects` and `unpackObjects` share the same `%options`. See
+["OPTIONS"](#options) below.
 
 ## packObjects
 
@@ -158,9 +160,8 @@ These options are common to `packObjects` and `unpackObjects`:
 
     This option lets you change the name of the `TO_BLESSED` method to something
     else. Hint: `FROM_JSON` could be a good idea here, even though [JSON](https://metacpan.org/pod/JSON)
-    doesn't have such a method.
-
-    Which is actually the entire Raison d'Etre of this module!
+    doesn't have such a method. Which is actually the entire Raison d'Etre of this
+    module!
 
 - `magicString`
 
@@ -176,9 +177,10 @@ Peter Valdemar Mørch, `<peter@morch.com>`
 
 # BUGS
 
-Please report any bugs or feature requests to `bug-class-storage at rt.cpan.org`, or through
-the web interface at [http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Class-Storage](http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Class-Storage).  I will be notified, and then you'll
-automatically be notified of progress on your bug as I make changes.
+Please report any bugs or feature requests to
+[https://github.com/pmorch/perl-Class-Storage/issues](https://github.com/pmorch/perl-Class-Storage/issues). I will be notified, and
+then you'll automatically be notified of progress on your bug as I make
+changes.
 
 # SUPPORT
 
@@ -188,9 +190,9 @@ You can find documentation for this module with the perldoc command.
 
 You can also look for information at:
 
-- RT: CPAN's request tracker (report bugs here)
+- Repository and Bug Tracker on Github
 
-    [http://rt.cpan.org/NoAuth/Bugs.html?Dist=Class-Storage](http://rt.cpan.org/NoAuth/Bugs.html?Dist=Class-Storage)
+    [https://github.com/pmorch/perl-Class-Storage](https://github.com/pmorch/perl-Class-Storage)
 
 - AnnoCPAN: Annotated CPAN documentation
 

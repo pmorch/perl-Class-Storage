@@ -1,5 +1,7 @@
-Revision history for Class-Unbless
+Revision history for Class-Storage
 
-0.01    Date/time
-        First version, released on an unsuspecting world.
+0.02    2015-06-19 01:45:00
+    - Fixed bugs in perldoc (after seeing it in metacpan)
+0.01    2015-06-19 00:15:00
+    - First version, released on an unsuspecting world.
 

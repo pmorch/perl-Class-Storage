@@ -6,6 +6,8 @@ use 5.006;
 use strict;
 use warnings FATAL => 'all';
 
+our $VERSION = '0.02';
+
 use Scalar::Util qw(blessed reftype);
 
 use base qw(Exporter);
@@ -161,11 +163,7 @@ Handles blessed HASHes and ARRAYs
 
 =head1 VERSION
 
-Version 0.01
-
-=cut
-
-our $VERSION = '0.01';
+Version 0.02
 
 =head1 SYNOPSIS
 
@@ -194,14 +192,15 @@ decoding. This can now all be done like this:
     # Which is_deeply the same as $object that we started with
 
 However, there is no JSON-specific functionality in this module whatsoever,
-only a way to cleanly "unbless" - remove the bless-ing - in a way that reliably
-can be re-introduced later.
+only a way to cleanly remove the bless-ing in a way that reliably can be
+re-introduced later.
 
 =head1 DESCRIPTION
 
 =head2 Using a magic string
 
-As you can see from the L</"SYNOPSIS">, we use a magic string ("__class__" by default) to store the class information for HASHes and ARRAYs.
+As you can see from the L</"SYNOPSIS">, we use a magic string (C<__class__> by
+default) to store the class information for HASHes and ARRAYs.
 
 So C<packObjects> turns:
 
@@ -218,21 +217,22 @@ arrays with the magic string as the first element back to blessed references
 
 This "magic string" can be given as an option (see L</"OPTIONS">), but if you
 cannot live with a magic string, you can also provide
-C<< magicString => undef >>. But then you won't be able to re-bless that data.
-If this is your itch, you may actually want L<Data::Structure::Util> instead.
+C<< magicString => undef >>. But then you won't be able to unpack that data and
+turn it back into objects. If this is your itch, you may actually want
+L<Data::Structure::Util> instead.
 
 =head2 Returns packed/unpacked data + modifies input argument
 
 The valid data is returned. However, for speed, we also modify and re-use data
 from the input value. So don't rely on being able to reuse the C<$data> input
-for C<bless> and C<packObjects> after they've been called and don't modify them
-either.
+for C<packObjects> and C<unpackObjects> after they've been called and don't
+modify them either.
 
 If you don't want your input modified:
 
     use Storable qw(dclone);
     my $pristineData = somesub();
-    my $unblessed = ubless(dclone($pristineData));
+    my $packed = packObjects(dclone($pristineData));
 
 =head2 Inspiration
 
@@ -250,11 +250,11 @@ provide a C<TO_PACKED> instance method. It will be called like:
 
     my $packed = $object->TO_PACKED();
 
-This packed data will be used by C<packObjects> instead of the guts of
+This C<$packed> data will be used by C<packObjects> instead of the guts of
 C<$object>.
 
-Similarly, when during C<unpackObjects>, if a module has a C<FROM_PACKED>
-static method it will be called like this:
+Similarly, during C<unpackObjects>, if a module has a C<FROM_PACKED> static
+method it will be called like this:
 
     my $object = $module->FROM_PACKED($packed);
 
@@ -292,8 +292,8 @@ just leave the JSON object altogether untouched.
 
 =head1 SUBROUTINES/METHODS
 
-Both C<packObjects> and C<bless> share the same C<%options>. See L</"OPTIONS">
-below.
+Both C<packObjects> and C<unpackObjects> share the same C<%options>. See
+L</"OPTIONS"> below.
 
 =head2 packObjects
 
@@ -318,9 +318,8 @@ else. Hint: C<TO_JSON> could be a good idea here!
 
 This option lets you change the name of the C<TO_BLESSED> method to something
 else. Hint: C<FROM_JSON> could be a good idea here, even though L<JSON>
-doesn't have such a method.
-
-Which is actually the entire Raison d'Etre of this module!
+doesn't have such a method. Which is actually the entire Raison d'Etre of this
+module!
 
 =item * C<magicString>
 
@@ -340,9 +339,10 @@ Peter Valdemar Mørch, C<< <peter@morch.com> >>
 
 =head1 BUGS
 
-Please report any bugs or feature requests to C<bug-class-storage at rt.cpan.org>, or through
-the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Class-Storage>.  I will be notified, and then you'll
-automatically be notified of progress on your bug as I make changes.
+Please report any bugs or feature requests to
+L<https://github.com/pmorch/perl-Class-Storage/issues>. I will be notified, and
+then you'll automatically be notified of progress on your bug as I make
+changes.
 
 =head1 SUPPORT
 
@@ -354,9 +354,9 @@ You can also look for information at:
 
 =over 4
 
-=item * RT: CPAN's request tracker (report bugs here)
+=item * Repository and Bug Tracker on Github
 
-L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Class-Storage>
+L<https://github.com/pmorch/perl-Class-Storage>
 
 =item * AnnoCPAN: Annotated CPAN documentation
 
