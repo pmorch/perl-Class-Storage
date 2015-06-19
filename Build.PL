@@ -1,4 +1,4 @@
-use 5.006;
+use 5.010;
 use strict;
 use warnings FATAL => 'all';
 use Module::Build;
@@ -13,9 +13,14 @@ my $builder = Module::Build->new(
         'Module::Build' => 0,
     },
     build_requires => {
-        'Test::More' => 0,
+    },
+    test_requires => {
+        'Clone' => 0,
+        # Need 0.96 for Test::More's subtest()
+        'Test::More' => '0.96',
     },
     requires => {
+        'perl' => '5.010'
     },
     add_to_cleanup     => [ 'Class-Unbless-*' ],
     create_makefile_pl => 'traditional',

@@ -6,7 +6,7 @@ use 5.006;
 use strict;
 use warnings FATAL => 'all';
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 use Scalar::Util qw(blessed reftype);
 
@@ -163,7 +163,7 @@ Handles blessed HASHes and ARRAYs
 
 =head1 VERSION
 
-Version 0.02
+Version 0.03
 
 =head1 SYNOPSIS
 
