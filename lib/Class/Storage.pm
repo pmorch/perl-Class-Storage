@@ -100,9 +100,10 @@ sub unpackObjects {
 
 sub _unpackObjects {
     my ($data, $options) = @_;
-    if (reftype $data eq 'HASH') {
+    my $reftype = reftype $data // return undef;
+    if ($reftype eq 'HASH') {
         return _unpackObjectsHash($data, $options);
-    } elsif (reftype $data eq 'ARRAY') {
+    } elsif ($reftype eq 'ARRAY') {
         return _unpackObjectsArray($data, $options);
     }
     return undef;
